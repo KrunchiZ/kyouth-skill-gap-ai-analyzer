@@ -1,0 +1,9 @@
+[project]
+name = "week2"
+version = "0.1.0"
+description = "kyouth data ai week2"
+readme = "README.md"
+requires-python = "==3.14.*"
+dependencies = [
+    "ruff==0.15.*",
+]
