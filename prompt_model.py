@@ -28,17 +28,17 @@ def prompt_model(llm_model: str, prompt: str) -> str:
 
     try:
         if llm_model in OLLAMA_MODELS:
-            response = ollama.chat(
+            response = ollama.generate(
                 model = llm_model,
-                messages = [{"role": "user", "content": prompt}],
+                prompt = prompt,
             )
-            return response.message.content
+            return response.response
 
         elif llm_model in GEMINI_MODELS:
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
+            gemini_api_key = os.environ.get("GEMINI_API_KEY")
+            if not gemini_api_key:
                 return "[Gemini Error] GEMINI_API_KEY environment variable not set."
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(api_key=gemini_api_key)
             response = client.models.generate_content(
                 model = llm_model,
                 contents = prompt,
