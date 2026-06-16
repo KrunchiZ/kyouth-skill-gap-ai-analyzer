@@ -74,16 +74,18 @@ async def _tag_data_async(db_url: str):
 	async with Client(server_cmd) as mcp:
 		untagged_result = await mcp.call_tool("fetch_untagged_jobs", {})
 		untagged: list[dict] = (
-			json.loads(untagged_result.content[0].text) if untagged_result else []
+			json.loads(untagged_result.content[0].text) if untagged_result.content else []
 		)
 		if not untagged:
 			print("No data to tag")
 			return
 
 		prompt_lines = [
-			"- analyze then determine the tech stack from each job description.",
+			"- determine the tech stack used based on each job description.",
 			"- your response must not contain any commentary, markdown, or extra text.",
 			"- each job is identified by a unique source_id",
+			"- tech stack should be concise, specific, consistent, must not repeat and must not be generic.",
+			"	(e.g. 'Python' is good, 'Programming Language' is not).",
 			"- STRICT response format: <source_id>: <tag1>, <tag2>, <tag3>, ...",
 			"--- DATA STARTS HERE ---",
 		]
