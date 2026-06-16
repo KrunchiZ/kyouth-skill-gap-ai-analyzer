@@ -21,10 +21,7 @@ from prompt_model import prompt_model
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-DEBUG = True
-DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
-
-USE_LOCAL_MODEL = True
+DEBUG, USE_LOCAL_MODEL = True
 
 # model passed to prompt_model()
 OLLAMA_MODELS = {
@@ -40,9 +37,9 @@ GEMINI_MODELS = {
 	"gemini-3-flash-preview",
 }
 
-MODEL = OLLAMA_MODELS[3] if USE_LOCAL_MODEL else GEMINI_MODELS[0]
-
-RATE_LIMITS_TXT			= Path("./rate_limits.txt")
+MODEL = OLLAMA_MODELS[0] if USE_LOCAL_MODEL else GEMINI_MODELS[0]
+DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
+RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
 # Hypothetical local model rate limits (local models not in rate_limits.txt)
 # Formula: batch_size = floor(LOCAL_TPM / AVG_TOKENS_PER_JOB)
@@ -72,11 +69,8 @@ def tag_data(db_url: str):
 
 
 async def _tag_data_async(db_url: str):
-	rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
 	server_cmd = f"python db_server.py {db_url}"
-
 	async with Client(server_cmd) as mcp:
-		batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
 		untagged_result = await mcp.call_tool("fetch_untagged_jobs", {})
 		untagged: list[dict] = (
 			json.loads(untagged_result[0].text) if untagged_result else []
@@ -93,6 +87,8 @@ async def _tag_data_async(db_url: str):
 		]
 
 		# Process in batches using list comprehension slicing
+		rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
+		batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
 		batches = ([untagged[i:i+batch_size]
 					for i in range(0, len(untagged), batch_size)])
 		
@@ -169,7 +165,7 @@ def _parse_num(s: str) -> int:
 async def _compute_batch_params(limits: dict, mcp: Client) -> tuple[int, float]:
 	# Derive (batch_size, retry_delay_seconds) from rate limits.
 	#
-	# batch_size  = floor(TPM / est_tokens_per_job)  capped at RPM and 20
+	# batch_size  = floor(TPM / est_tokens_per_job) capped at RPM and 20
 	# retry_delay = ceil(60 / RPM)
 	# Falls back to LOCAL_RPM / LOCAL_TPM hypothetical limits for local models
 	m   = limits.get(MODEL, {})
