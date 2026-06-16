@@ -20,6 +20,12 @@ GEMINI_MODELS = {
 
 
 def prompt_model(llm_model: str, prompt: str) -> str:
+    llm_model = llm_model.strip()
+    prompt = prompt.strip()
+    if not llm_model or not prompt:
+        print("Error: <model> and <prompt> cannot be empty.")
+        return None
+
     try:
         if llm_model in OLLAMA_MODELS:
             response = ollama.chat(
@@ -47,23 +53,14 @@ def prompt_model(llm_model: str, prompt: str) -> str:
         return f"[{llm_model} Error] {code}"
 
 
-def main():
+if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python prompt_model.py <model> <prompt>")
         print(f"Ollama models : {sorted(OLLAMA_MODELS)}")
         print(f"Gemini models : {sorted(GEMINI_MODELS)}")
         sys.exit(1)
 
-    model = sys.argv[1].strip()
-    prompt = sys.argv[2].strip()
-    if not model or not prompt:
-        print("Error: <model> and <prompt> cannot be empty.")
-        sys.exit(1)
-
-    response = prompt_model(model, prompt)
-    print("\n--- RESPONSE ---\n")
-    print(f"{response}")
-
-
-if __name__ == "__main__":
-    main()
+    response = prompt_model(sys.argv[1], sys.argv[2])
+    if response is not None:
+        print("\n--- RESPONSE ---\n")
+        print(f"{response}")
