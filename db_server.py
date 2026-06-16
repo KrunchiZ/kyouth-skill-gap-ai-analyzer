@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from fastmcp import FastMCP
 
-DB_PATH: str = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("jobs_d1.db")
+DB_PATH: str = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/jobs_d1.db")
 
 SQL_COUNT_AVG_DESC_LEN  = Path("./sql/count_avg_desc_length.sql")
 SQL_FETCH_TAGGED        = Path("./sql/fetch_tagged.sql")
@@ -20,7 +20,7 @@ SQL_UPDATE_TECH_STACK   = Path("./sql/update_tech_stack.sql")
 # ---------------------------------------------------------------------------
 # MCP server
 # ---------------------------------------------------------------------------
-mcp = FastMCP("SQLiteQueryServer")
+mcp = FastMCP("SQLite-Service")
 
 
 def _load_sql(path: Path) -> str:

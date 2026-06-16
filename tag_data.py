@@ -16,28 +16,29 @@ import json
 from pathlib import Path
 from fastmcp import Client
 from prompt_model import prompt_model
+from fastmcp.client.transports import PythonStdioTransport
 
 # ---------------------------------------------------------------------------
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-DEBUG, USE_LOCAL_MODEL = True
+DEBUG = True
 
 # model passed to prompt_model()
-OLLAMA_MODELS = {
+OLLAMA_MODELS = [
 	"gemma3:1b",
 	"llama3.1",
 	"phi3",
 	"deepseek-r1:1.5b",
-}
+]
 
-GEMINI_MODELS = {
+GEMINI_MODELS = [
 	"gemini-2.5-flash-lite",
 	"gemini-2.5-flash",
 	"gemini-3-flash-preview",
-}
+]
 
-MODEL = OLLAMA_MODELS[0] if USE_LOCAL_MODEL else GEMINI_MODELS[0]
+MODEL = OLLAMA_MODELS[1] if DEBUG else GEMINI_MODELS[0]
 DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
@@ -63,27 +64,28 @@ def main():
 
 def tag_data(db_url: str):
 	try:
-		asyncio.run(_tag_data_async(db_url))
+		asyncio.run(_tag_data_async(str(db_url)))
 	except Exception as code:
 		print(f"Fatal error: {code}")
 
 
 async def _tag_data_async(db_url: str):
-	server_cmd = f"python db_server.py {db_url}"
+	server_cmd = PythonStdioTransport("db_server.py", args=[db_url])
 	async with Client(server_cmd) as mcp:
 		untagged_result = await mcp.call_tool("fetch_untagged_jobs", {})
 		untagged: list[dict] = (
-			json.loads(untagged_result[0].text) if untagged_result else []
+			json.loads(untagged_result.content[0].text) if untagged_result else []
 		)
 		if not untagged:
 			print("No data to tag")
 			return
 
 		prompt_lines = [
-			"Task: Extract the technical stack from each job description.",
-			"Strict Rules: comma-separated technologies only, no explanations.",
-			"Output: ONE LINE PER JOB using format: <source_id>: <tag1>, <tag2>, ...",
-			"---",
+			"- extract the tech stack from each job description.",
+			"- your response must not contain any commentary, markdown, or extra text.",
+			"- each job is identified by a unique source_id",
+			"- STRICT response format: <source_id>: <tag1>, <tag2>, <tag3>, ...",
+			"--- DATA STARTS HERE ---",
 		]
 
 		# Process in batches using list comprehension slicing
@@ -99,7 +101,8 @@ async def _tag_data_async(db_url: str):
 			
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
-					raw = await asyncio.to_thread(prompt_model(MODEL, prompt))
+					raw = await prompt_model(MODEL, prompt)
+					print(raw)
 					parsed = _parse_response(raw, expected_ids)
 					if len(parsed) != len(batch):
 						raise ValueError(
@@ -171,11 +174,11 @@ async def _compute_batch_params(limits: dict, mcp: Client) -> tuple[int, float]:
 	m   = limits.get(MODEL, {})
 	tpm = m.get("tpm", LOCAL_TPM)
 	rpm = m.get("rpm", LOCAL_RPM)
-	est_tokens_per_job = await mcp.call_tool("count_avg_desc_length", {})
-	est_tokens_per_job = math.ceil((int(json.loads(est_tokens_per_job[0].text)
-							if est_tokens_per_job else 1000) + 200) / 4)
+	est_tokens = await mcp.call_tool("count_avg_desc_length", {})
+	est_tokens = math.ceil((int(json.loads(est_tokens.content[0].text)
+							if est_tokens else 1000) + 200) / 4)
 
-	batch_size  = min(math.floor(tpm / est_tokens_per_job), rpm, 20)
+	batch_size  = min(math.floor(tpm / est_tokens), rpm, 20)
 	retry_delay = math.ceil(60 / rpm)
 	return batch_size, float(retry_delay)
 
@@ -187,8 +190,8 @@ async def _compute_batch_params(limits: dict, mcp: Client) -> tuple[int, float]:
 def _build_prompt(jobs: list[dict], prompt_lines: list[str]) -> str:
 	# Compact prompt — one line per job, no markdown or chain-of-thought.
 	for job in jobs:
-		desc = (job.get("description") or "").strip()
-		prompt_lines.append(f'[{job["source_id"]}]\n{job["job_title"]}'
+		desc = (job.get("description").replace("\n", " ") or "").strip()
+		prompt_lines.append(f'[{job["source_id"]}] {job["job_title"]}'
 					 f' @ {job["company"]}\nDescription:\n{desc}\n---')
 	return "\n".join(prompt_lines)
 

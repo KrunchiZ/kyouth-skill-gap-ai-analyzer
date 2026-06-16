@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 mcp_client = Client("db_server.py")
-gemini = genai.Client()
+gemini_client = genai.Client()
+ollama_client = ollama.AsyncClient()
 
 OLLAMA_MODELS = {
     "gemma3:1b",
@@ -32,14 +33,14 @@ async def prompt_model(llm_model: str, prompt: str) -> str:
 
     try:
         if llm_model in OLLAMA_MODELS:
-            response = await ollama.generate(
+            response = await ollama_client.generate(
                 model = llm_model,
                 prompt = prompt,
             )
             return response.response
 
         elif llm_model in GEMINI_MODELS:
-            response = await gemini.aio.models.generate_content(
+            response = await gemini_client.aio.models.generate_content(
                 model = llm_model,
                 contents = prompt,
                 config = genai.types.GenerateContentConfig(tools=[mcp_client.session])
