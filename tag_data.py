@@ -81,7 +81,7 @@ async def _tag_data_async(db_url: str):
 			return
 
 		prompt_lines = [
-			"- extract the tech stack from each job description.",
+			"- analyze then determine the tech stack from each job description.",
 			"- your response must not contain any commentary, markdown, or extra text.",
 			"- each job is identified by a unique source_id",
 			"- STRICT response format: <source_id>: <tag1>, <tag2>, <tag3>, ...",
@@ -102,7 +102,7 @@ async def _tag_data_async(db_url: str):
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
 					raw = await prompt_model(MODEL, prompt)
-					print(raw)
+					print(raw + "\n")
 					parsed = _parse_response(raw, expected_ids)
 					if len(parsed) != len(batch):
 						raise ValueError(
