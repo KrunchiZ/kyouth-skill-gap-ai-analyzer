@@ -2,4 +2,4 @@ data/
 __pycache__/
 .ruff_cache
 .venv/
-GEMINI_API_KEY
+.env

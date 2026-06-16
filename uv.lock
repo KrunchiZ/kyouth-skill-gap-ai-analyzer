@@ -1233,6 +1233,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "google-genai" },
     { name = "ollama" },
+    { name = "python-dotenv" },
     { name = "ruff" },
 ]
 
@@ -1241,5 +1242,6 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "google-genai", specifier = ">=2.8.0" },
     { name = "ollama", specifier = ">=0.6.2" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "ruff", specifier = "==0.15.*" },
 ]
