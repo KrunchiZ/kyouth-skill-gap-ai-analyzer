@@ -10,17 +10,16 @@ mcp_client = Client("db_server.py")
 gemini = genai.Client()
 
 OLLAMA_MODELS = {
+    "gemma3:1b",
     "llama3.1",
     "phi3",
     "deepseek-r1:1.5b",
-    "gemma3:1b",
 }
 
 GEMINI_MODELS = {
-    "gemini-3.1-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-3-flash-preview",
 }
 
 
