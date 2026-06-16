@@ -1,8 +1,13 @@
 import sys
-import os
+import asyncio
 import ollama
 from google import genai
+from fastmcp import Client
+from dotenv import load_dotenv
 
+load_dotenv()
+mcp_client = Client("db_server.py")
+gemini = genai.Client()
 
 OLLAMA_MODELS = {
     "llama3.1",
@@ -19,7 +24,7 @@ GEMINI_MODELS = {
 }
 
 
-def prompt_model(llm_model: str, prompt: str) -> str:
+async def prompt_model(llm_model: str, prompt: str) -> str:
     llm_model = llm_model.strip()
     prompt = prompt.strip()
     if not llm_model or not prompt:
@@ -28,20 +33,17 @@ def prompt_model(llm_model: str, prompt: str) -> str:
 
     try:
         if llm_model in OLLAMA_MODELS:
-            response = ollama.generate(
+            response = await ollama.generate(
                 model = llm_model,
                 prompt = prompt,
             )
             return response.response
 
         elif llm_model in GEMINI_MODELS:
-            gemini_api_key = os.environ.get("GEMINI_API_KEY")
-            if not gemini_api_key:
-                return "[Gemini Error] GEMINI_API_KEY environment variable not set."
-            client = genai.Client(api_key=gemini_api_key)
-            response = client.models.generate_content(
+            response = await gemini.aio.models.generate_content(
                 model = llm_model,
                 contents = prompt,
+                config = genai.types.GenerateContentConfig(tools=[mcp_client.session])
             )
             return response.text
 
@@ -53,14 +55,17 @@ def prompt_model(llm_model: str, prompt: str) -> str:
         return f"[{llm_model} Error] {code}"
 
 
-if __name__ == "__main__":
+async def main():
     if len(sys.argv) != 3:
         print("Usage: python prompt_model.py <model> <prompt>")
         print(f"Ollama models : {sorted(OLLAMA_MODELS)}")
         print(f"Gemini models : {sorted(GEMINI_MODELS)}")
         sys.exit(1)
 
-    response = prompt_model(sys.argv[1], sys.argv[2])
+    response = await prompt_model(sys.argv[1], sys.argv[2])
     if response is not None:
         print("\n--- RESPONSE ---\n")
         print(f"{response}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
