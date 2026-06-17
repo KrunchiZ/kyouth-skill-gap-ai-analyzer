@@ -42,7 +42,6 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 				options={
 					"temperature": temperature,
 					"top_p": top_p,
-					"system_instructions": "You are a technical skill analyst."
 				},
 			)
 			return response.response
@@ -54,7 +53,6 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 				config = types.GenerateContentConfig(
 					temperature = temperature,
 					top_p = top_p,
-					system_instructions = "You are a technical skill analyst."
 				),
 			)
 			return response.text
