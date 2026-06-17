@@ -39,7 +39,7 @@ GEMINI_MODELS = [
 	"gemini-3-flash-preview",
 ]
 
-MODEL = OLLAMA_MODELS[0] if DEBUG else GEMINI_MODELS[0]
+MODEL = OLLAMA_MODELS[1] if DEBUG else GEMINI_MODELS[0]
 DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
@@ -73,41 +73,39 @@ def tag_data(db_url: str):
 async def _tag_data_async(db_url: str):
 	server_cmd = PythonStdioTransport("db_server.py", args=[db_url])
 	async with Client(server_cmd) as mcp:
-		untagged_result = await mcp.call_tool("fetch_untagged_jobs", {})
-		untagged: list[dict] = (
-			json.loads(untagged_result.content[0].text) if untagged_result.content else []
-		)
-		if not untagged:
-			print("No data to tag")
-			return
+		b_idx = 0
+		while True:
+			rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
+			batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
+			untagged_result = await mcp.call_tool("fetch_untagged_jobs", {"limit": batch_size})
+			batch: list[dict] = (
+				json.loads(untagged_result.content[0].text) if untagged_result.content else []
+			)
+			if not batch:
+				break
 
-		prompt_lines = [
-			"- determine the tech stack used based on each job description.",
-			"- your response must not contain any commentary, markdown, or extra text.",
-			"- each job is identified by a unique source_id",
-			"- STRICT response format= one line JSON schema as followed:"
-			"{\n\t<source_id>: '<tag1>, <tag2>, <tag3>, ...'\n}",
-			"- STRICT: tech stack tag must be:",
-			"	-- in English, title case",
-			"	-- concise, consistent, not generic and must not repeat",
-			"	-- e.g. 'Python' is good, 'Programming Language' is not.",
-			"	-- if no tech stack can be determined:",
-			"		--- analyze the job description and title to infer the most relevant tech stack. Follow the rules above.",
-			"		--- if final result is still inconclusive, return only 'N/A' tag for that source_id.",
-			"--- DATA STARTS HERE ---",
-		]
+			prompt_lines = [
+				"Extract the tech stack from each job description.",
+				"Reply ONLY in this format, one line per job, no other text:",
+				"<source_id>: <tag1>, <tag2>, <tag3>",
+				"",
+				"Rules:",
+				"- Tags must be specific tools/languages/frameworks (e.g. Python, React, MySQL).",
+				"- No generic terms (e.g. 'Programming Language', 'Database').",
+				"- No duplicates, no brackets, no markdown.",
+				"- If unsure, infer from job title and description.",
+				"- If nothing can be inferred, output: <source_id>: N/A",
+				"",
+				"Example:",
+				"91397216: Python, SQL, Tableau, A/B testing",
+				"91347112: Java, Spring Boot, Docker, Kubernetes",
+				"",
+				"--- DATA STARTS HERE ---",
+			]
 
-		# Process in batches using list comprehension slicing
-		rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
-		batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
-		batches = ([untagged[i:i+batch_size]
-					for i in range(0, len(untagged), batch_size)])
-		
-		for b_idx, batch in enumerate(batches):
 			expected_ids = [str(job["source_id"]) for job in batch]
 			prompt = _build_prompt(batch, prompt_lines)
 			parsed: dict[str, str] = {}
-			
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
 					raw = await prompt_model(MODEL, prompt)
@@ -135,6 +133,10 @@ async def _tag_data_async(db_url: str):
 				ok = await mcp.call_tool("update_tech_stack", {"source_id": sid, "tech_stack": stack})
 				if ok:
 					print(f"Analyzed Job {sid}: {stack}")
+					b_idx += 1
+
+		if b_idx == 0:
+			print("No data to tag")
 
 
 # ---------------------------------------------------------------------------
@@ -219,9 +221,9 @@ def _parse_response(raw: str, expected_ids: list[str]) -> dict[str, str]:
 		if not line or ":" not in line:
 			continue
 		sid, _, tags = line.partition(":")
-		sid = sid.strip().lstrip("[").rstrip("]").strip()
+		sid = sid.strip().strip("\"\'[]").strip()
 		if sid in expected_ids:
-			result[sid] = tags.strip()
+			result[sid] = tags.strip().strip("\"\',[]").strip()
 	return result
 
 

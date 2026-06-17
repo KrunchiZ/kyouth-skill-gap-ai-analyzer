@@ -43,11 +43,11 @@ def count_avg_desc_length() -> float:
 
 
 @mcp.tool()
-def fetch_untagged_jobs() -> list[dict]:
+def fetch_untagged_jobs(batch_size: int) -> list[dict]:
     # Return all jobs where tech_stack is NULL or empty.
     sql = _load_sql(SQL_FETCH_UNTAGGED)
     with _connect() as conn:
-        rows = conn.execute(sql).fetchall()
+        rows = conn.execute(sql, {"batch_size": batch_size}).fetchall()
     return [dict(r) for r in rows]
 
 
