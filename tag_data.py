@@ -84,9 +84,14 @@ async def _tag_data_async(db_url: str):
 			"- determine the tech stack used based on each job description.",
 			"- your response must not contain any commentary, markdown, or extra text.",
 			"- each job is identified by a unique source_id",
-			"- tech stack must be concise, consistent, not generic and must not repeat.",
-			"- e.g. 'Python' is good, 'Programming Language' is not.",
-			"- if no tech stack can be determined, return an empty string tag for that source_id.",
+			"- tech stack must be:",
+			"	-- in English, title case",
+			"	-- concise, consistent, relevant to the description",
+			"	-- not generic and must not repeat",
+			"	-- e.g. 'Python' is good, 'Programming Language' is not.",
+			"- if no tech stack can be determined:",
+			"	-- try to infer with relevant tech stack from description and job_title",
+			"	-- if final result is still inconclusive, return 'N/A' tag for that source_id.",
 			"- STRICT response format: <source_id>: <tag1>, <tag2>, <tag3>, ...",
 			"--- DATA STARTS HERE ---",
 		]
@@ -179,7 +184,7 @@ async def _compute_batch_params(limits: dict, mcp: Client) -> tuple[int, float]:
 	rpm = m.get("rpm", LOCAL_RPM)
 	est_tokens = await mcp.call_tool("count_avg_desc_length", {})
 	est_tokens = math.ceil((int(json.loads(est_tokens.content[0].text)
-							if est_tokens else 1000) + 200) / 4)
+							if est_tokens else 1000) + 300) / 4)
 
 	batch_size  = min(math.floor(tpm / est_tokens), rpm, 20)
 	retry_delay = math.ceil(60 / rpm)
