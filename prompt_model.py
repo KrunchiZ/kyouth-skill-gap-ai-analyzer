@@ -1,20 +1,17 @@
 import sys
-import asyncio
 import ollama
 from google import genai
-from fastmcp import Client
 from dotenv import load_dotenv
 
 load_dotenv()
-mcp_client = Client("db_server.py")
 gemini_client = genai.Client()
-ollama_client = ollama.AsyncClient()
+ollama_client = ollama.Client()
 
 OLLAMA_MODELS = {
-    "gemma3:1b",
     "llama3.1",
     "phi3",
     "deepseek-r1:1.5b",
+    "gemma3:1b",
 }
 
 GEMINI_MODELS = {
@@ -25,7 +22,7 @@ GEMINI_MODELS = {
 }
 
 
-async def prompt_model(llm_model: str, prompt: str) -> str:
+def prompt_model(llm_model: str, prompt: str) -> str:
     llm_model = llm_model.strip()
     prompt = prompt.strip()
     if not llm_model or not prompt:
@@ -34,17 +31,16 @@ async def prompt_model(llm_model: str, prompt: str) -> str:
 
     try:
         if llm_model in OLLAMA_MODELS:
-            response = await ollama_client.generate(
+            response = ollama_client.generate(
                 model = llm_model,
                 prompt = prompt,
             )
             return response.response
 
         elif llm_model in GEMINI_MODELS:
-            response = await gemini_client.aio.models.generate_content(
+            response = gemini_client.models.generate_content(
                 model = llm_model,
                 contents = prompt,
-                config = genai.types.GenerateContentConfig(tools=[mcp_client.session])
             )
             return response.text
 
@@ -63,10 +59,10 @@ async def main():
         print(f"Gemini models : {sorted(GEMINI_MODELS)}")
         sys.exit(1)
 
-    response = await prompt_model(sys.argv[1], sys.argv[2])
+    response = prompt_model(sys.argv[1], sys.argv[2])
     if response is not None:
         print("\n--- RESPONSE ---\n")
         print(f"{response}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

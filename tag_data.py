@@ -23,13 +23,14 @@ from fastmcp.client.transports import PythonStdioTransport
 # ---------------------------------------------------------------------------
 
 DEBUG = True
+LOCAL_MODEL = False
 
 # model passed to prompt_model()
 OLLAMA_MODELS = [
-	"gemma3:1b",
 	"llama3.1",
 	"phi3",
 	"deepseek-r1:1.5b",
+	"gemma3:1b",
 ]
 
 GEMINI_MODELS = [
@@ -39,7 +40,7 @@ GEMINI_MODELS = [
 	"gemini-3-flash-preview",
 ]
 
-MODEL = OLLAMA_MODELS[1] if DEBUG else GEMINI_MODELS[0]
+MODEL = OLLAMA_MODELS[0] if LOCAL_MODEL else GEMINI_MODELS[0]
 DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
@@ -77,6 +78,7 @@ async def _tag_data_async(db_url: str):
 		while True:
 			rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
 			batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
+
 			untagged_result = await mcp.call_tool("fetch_untagged_jobs", {"batch_size": batch_size})
 			batch: list[dict] = (
 				json.loads(untagged_result.content[0].text) if untagged_result.content else []
@@ -86,19 +88,21 @@ async def _tag_data_async(db_url: str):
 
 			prompt_lines = [
 				"Extract the tech stack from each job description.",
-				"Reply ONLY in this format, one line per job, no other text:",
+				"Reply ONLY in this JSON format, one line per job, no other explanation:",
 				"<source_id>: <tag1>, <tag2>, <tag3>",
 				"",
 				"Rules:",
-				"- Tags must be specific tools/languages/frameworks (e.g. Python, React, MySQL).",
-				"- No generic terms (e.g. 'Programming Language', 'Database').",
-				"- No duplicates, no brackets, no markdown.",
-				"- If unsure, infer from job title and description.",
-				"- If nothing can be inferred, output: <source_id>: N/A",
+				"- Tags must be specific tools, languages or frameworks (e.g. Python, React, MySQL).",
+				# "- No generic terms (e.g. 'Programming Language', 'Database', 'Deployment').",
+				"- No duplicates, no brackets, no markdown, must be comma-separated.",
+				"- If the description is vague but hints at a common stack (e.g. 'web development' might imply JavaScript, HTML, CSS), make your best guess.",
+				"- Even a vague hint is better than nothing.",
+				# "- If nothing can be inferred, output: <source_id>: N/A",
 				"",
 				"Example:",
-				"91397216: Python, SQL, Tableau, A/B testing",
+				"91397216: Python, SQL, MySQL, MariaDB, Tableau, A/B testing",
 				"91347112: Java, Spring Boot, Docker, Kubernetes",
+				"91765212: Excel, PowerPoint, Python, C, C++",
 				"",
 				"--- DATA STARTS HERE ---",
 			]
@@ -108,8 +112,7 @@ async def _tag_data_async(db_url: str):
 			parsed: dict[str, str] = {}
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
-					raw = await prompt_model(MODEL, prompt)
-					print(raw + "\n")
+					raw = prompt_model(MODEL, prompt)
 					parsed = _parse_response(raw, expected_ids)
 					if len(parsed) != len(batch):
 						raise ValueError(
