@@ -1,22 +1,17 @@
-"""
-tag_data.py — Week 2 Day 1: Data Tagging
-=========================================
-Reads untagged job listings from a SQLite DB (via FastMCP), calls an LLM to
-extract the tech stack from each job description, and writes results back.
-
-Usage:
-	uv run tag_data.py
-
-To switch models, change the MODEL constant below.
-"""
-
 import asyncio
 import math
 import json
+import logging
 from pathlib import Path
 from fastmcp import Client
 from prompt_model import prompt_model
 from fastmcp.client.transports import PythonStdioTransport
+
+logging.basicConfig(
+	level=logging.INFO,
+	format="[%(asctime)s] | %(levelname)s | %(message)s",
+	datefmt="%m/%d/%y %H:%M:%S",
+)
 
 # ---------------------------------------------------------------------------
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
@@ -68,7 +63,7 @@ def tag_data(db_url: str):
 	try:
 		asyncio.run(_tag_data_async(str(db_url)))
 	except Exception as code:
-		print(f"Fatal error: {code}")
+		logging.error(f"Fatal error: {code}")
 
 
 async def _tag_data_async(db_url: str):
@@ -120,12 +115,12 @@ async def _tag_data_async(db_url: str):
 					break
 
 				except Exception as code:
-					print(f"[Batch {b_idx}] Attempt {attempt} failed: {code}")
+					logging.error(f"[Batch {b_idx}] Attempt {attempt} failed: {code}")
 					if attempt < MAX_RETRIES:
 						await asyncio.sleep(retry_delay
 							* (BACKOFF_BASE_SECONDS ** (attempt - 1)))
 					else:
-						print(f"[Batch {b_idx}] All {MAX_RETRIES} attempts "
+						logging.error(f"[Batch {b_idx}] All {MAX_RETRIES} attempts "
 							"failed — skipping batch.")
 
 			for job in batch:
@@ -135,11 +130,11 @@ async def _tag_data_async(db_url: str):
 					continue
 				ok = await mcp.call_tool("update_tech_stack", {"source_id": sid, "tech_stack": stack})
 				if ok:
-					print(f"Analyzed Job {sid}: {stack}")
+					logging.info(f"Analyzed Job {sid}: {stack}")
 					b_idx += 1
 
 		if b_idx == 0:
-			print("No data to tag")
+			logging.info("No data to tag")
 
 
 # ---------------------------------------------------------------------------

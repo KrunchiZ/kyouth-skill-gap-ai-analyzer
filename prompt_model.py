@@ -1,8 +1,17 @@
 import sys
+import logging
 import ollama
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+
+logging.basicConfig(
+	level=logging.INFO,
+	format="[%(asctime)s] | %(levelname)s | %(message)s",
+	datefmt="%m/%d/%y %H:%M:%S",
+)
+logging.getLogger("google_genai.models").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 load_dotenv()
 gemini_client = genai.Client()
@@ -26,46 +35,7 @@ DEFAULT_TEMPERATURE = 0.95
 DEFAULT_TOP_P = 0.95
 
 
-def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPERATURE,
-				 top_p: float = DEFAULT_TOP_P) -> str:
-	llm_model = llm_model.strip()
-	prompt = prompt.strip()
-	if not llm_model or not prompt:
-		print("Error: <model> and <prompt> cannot be empty.")
-		return None
-
-	try:
-		if llm_model in OLLAMA_MODELS:
-			response = ollama_client.generate(
-				model = llm_model,
-				prompt = prompt,
-				options={
-					"temperature": temperature,
-					"top_p": top_p,
-				},
-			)
-			return response.response
-
-		elif llm_model in GEMINI_MODELS:
-			response = gemini_client.models.generate_content(
-				model = llm_model,
-				contents = prompt,
-				config = types.GenerateContentConfig(
-					temperature = temperature,
-					top_p = top_p,
-				),
-			)
-			return response.text
-
-		else:
-			return (f"[Error] Unknown model: '{llm_model}'. Supported models"
-					f": {sorted(OLLAMA_MODELS | GEMINI_MODELS)}")
-
-	except Exception as code:
-		return f"[{llm_model} Error] {code}"
-
-
-async def main():
+def main():
 	if len(sys.argv) != 3:
 		print("Usage: python prompt_model.py <model> <prompt>")
 		print(f"Ollama models : {sorted(OLLAMA_MODELS)}")
@@ -76,6 +46,61 @@ async def main():
 	if response is not None:
 		print("\n--- RESPONSE ---\n")
 		print(f"{response}")
+
+
+def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPERATURE,
+				 top_p: float = DEFAULT_TOP_P) -> str:
+	llm_model = llm_model.strip()
+	prompt = prompt.strip()
+	if not llm_model or not prompt:
+		logging.error("<model> and <prompt> cannot be empty.")
+		return None
+	if llm_model not in OLLAMA_MODELS and llm_model not in GEMINI_MODELS:
+		logging.error(f"Unknown model: '{llm_model}'. Supported models"
+			f": {sorted(OLLAMA_MODELS | GEMINI_MODELS)}")
+		return None
+
+	try:
+		if llm_model in OLLAMA_MODELS:
+			for i in range(3):
+				try:
+					response = ollama_client.generate(
+						model = llm_model,
+						prompt = prompt,
+						options={
+							"temperature": temperature,
+							"top_p": top_p,
+						},
+					)
+					return response.response
+
+				except ollama.ResponseError as e:
+					if i < 2:
+						continue
+					raise ValueError(f"Error ({e.status_code}): {e.error}")
+
+		if llm_model in GEMINI_MODELS:
+			for i in range(3):
+				try:
+					response = gemini_client.models.generate_content(
+						model = llm_model,
+						contents = prompt,
+						config = types.GenerateContentConfig(
+							temperature = temperature,
+						top_p = top_p,
+						),
+					)
+					return response.text
+				
+				except genai.errors.APIError as e:
+					if i < 2:
+						continue
+					raise ValueError(f"Error ({e.code}): {e.message}")
+
+	except Exception as code:
+		logging.error(f"[{llm_model}]: {code}")
+		return None
+
 
 if __name__ == "__main__":
 	main()

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import math
 import json
 from pathlib import Path
@@ -9,6 +10,12 @@ from fastmcp.client.transports import PythonStdioTransport
 
 class SkillGapResult(BaseModel):
 	gaps: list[str]
+
+logging.basicConfig(
+	level=logging.INFO,
+	format="[%(asctime)s] | %(levelname)s | %(message)s",
+	datefmt="%m/%d/%y %H:%M:%S",
+)
 
 # ---------------------------------------------------------------------------
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
