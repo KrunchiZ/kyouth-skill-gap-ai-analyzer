@@ -50,8 +50,9 @@ def main():
 
 def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPERATURE,
 				 top_p: float = DEFAULT_TOP_P) -> str:
-	llm_model = llm_model.strip()
-	prompt = prompt.strip()
+	# Basic validation and normalization
+	llm_model = llm_model.strip() if llm_model else None
+	prompt = prompt.strip() if prompt else None
 	if not llm_model or not prompt:
 		logging.error("<model> and <prompt> cannot be empty.")
 		return None
@@ -59,6 +60,9 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 		logging.error(f"Unknown model: '{llm_model}'. Supported models"
 			f": {sorted(OLLAMA_MODELS | GEMINI_MODELS)}")
 		return None
+
+	temperature = max(0.0, min(1.0, temperature))
+	top_p = max(0.0, min(1.0, top_p))
 
 	try:
 		if llm_model in OLLAMA_MODELS:

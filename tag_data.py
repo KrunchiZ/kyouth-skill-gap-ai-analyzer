@@ -2,6 +2,7 @@ import asyncio
 import math
 import json
 import logging
+import os
 from pathlib import Path
 from fastmcp import Client
 from prompt_model import prompt_model
@@ -60,6 +61,12 @@ def main():
 # ---------------------------------------------------------------------------
 
 def tag_data(db_url: str):
+	if not db_url.exists():
+		logging.warning(f"Input path not found: {db_url}")
+		return
+	if not os.access(db_url, os.R_OK):
+		logging.warning(f"Input path not readable: {db_url}")
+		return
 	try:
 		asyncio.run(_tag_data_async(str(db_url)))
 	except Exception as code:

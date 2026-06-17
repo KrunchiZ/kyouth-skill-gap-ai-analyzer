@@ -1,4 +1,4 @@
-import sys
+import os
 import math
 import json
 import logging
@@ -91,6 +91,12 @@ def main():
 # ---------------------------------------------------------------------------
 
 def extract_resume_skills(file_path: str) -> set[str]:
+	if not file_path.exists():
+		logging.warning(f"Input path not found: {file_path}")
+		return
+	if not os.access(file_path, os.R_OK):
+		logging.warning(f"Input path not readable: {file_path}")
+		return
 	try:
 		resume_text = read_resume(file_path)
 		if not resume_text:
