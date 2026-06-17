@@ -77,7 +77,7 @@ async def _tag_data_async(db_url: str):
 		while True:
 			rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
 			batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
-			untagged_result = await mcp.call_tool("fetch_untagged_jobs", {"limit": batch_size})
+			untagged_result = await mcp.call_tool("fetch_untagged_jobs", {"batch_size": batch_size})
 			batch: list[dict] = (
 				json.loads(untagged_result.content[0].text) if untagged_result.content else []
 			)
