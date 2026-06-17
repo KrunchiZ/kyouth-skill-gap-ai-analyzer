@@ -108,6 +108,8 @@ async def _tag_data_async(db_url: str):
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
 					raw = prompt_model(MODEL, prompt)
+					if not raw:
+						raise ValueError("Empty response from model")
 					parsed = _parse_response(raw, expected_ids)
 					if len(parsed) != len(batch):
 						raise ValueError(
