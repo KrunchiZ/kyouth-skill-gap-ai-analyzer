@@ -33,12 +33,13 @@ OLLAMA_MODELS = [
 ]
 
 GEMINI_MODELS = [
+	"gemini-3.1-flash-lite",
 	"gemini-2.5-flash-lite",
 	"gemini-2.5-flash",
 	"gemini-3-flash-preview",
 ]
 
-MODEL = OLLAMA_MODELS[1] if DEBUG else GEMINI_MODELS[0]
+MODEL = OLLAMA_MODELS[0] if DEBUG else GEMINI_MODELS[0]
 DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
@@ -84,15 +85,15 @@ async def _tag_data_async(db_url: str):
 			"- determine the tech stack used based on each job description.",
 			"- your response must not contain any commentary, markdown, or extra text.",
 			"- each job is identified by a unique source_id",
-			"- STRICT response format: <source_id>: <tag1>, <tag2>, <tag3>, ...",
+			"- STRICT response format= one line JSON schema as followed:"
+			"{\n\t<source_id>: '<tag1>, <tag2>, <tag3>, ...'\n}",
 			"- STRICT: tech stack tag must be:",
 			"	-- in English, title case",
-			"	-- concise, consistent, relevant to the description",
-			"	-- not generic and must not repeat",
+			"	-- concise, consistent, not generic and must not repeat",
 			"	-- e.g. 'Python' is good, 'Programming Language' is not.",
 			"	-- if no tech stack can be determined:",
-			"		--- Using description as context, infer with relevant tech stack. Follow the rules above.",
-			"		--- if final result is still inconclusive, return 'N/A' tag for that source_id.",
+			"		--- analyze the job description and title to infer the most relevant tech stack. Follow the rules above.",
+			"		--- if final result is still inconclusive, return only 'N/A' tag for that source_id.",
 			"--- DATA STARTS HERE ---",
 		]
 
