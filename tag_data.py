@@ -156,7 +156,7 @@ async def _tag_data_async(db_url: str):
 async def compute_batch_params(mcp: Client) -> tuple[int, float]:
 	# Derive (batch_size, retry_delay_seconds) from rate limits.
 	#
-	# batch_size  = floor(TPM / est_tokens_per_job) capped at RPM and 20
+	# batch_size  = floor(TPM / est_tokens_per_job) capped at 30
 	# retry_delay = ceil(60 / RPM)
 	# Falls back to LOCAL_RPM / LOCAL_TPM hypothetical limits for local models
 	limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
@@ -164,10 +164,12 @@ async def compute_batch_params(mcp: Client) -> tuple[int, float]:
 	tpm = m.get("tpm", LOCAL_TPM)
 	rpm = m.get("rpm", LOCAL_RPM)
 	avg_desc_length = await mcp.call_tool("count_avg_desc_length", {})
-	est_tokens_per_job = math.ceil((int(json.loads(avg_desc_length.content[0].text) if avg_desc_length else 1000)
-							 + 300) / 4)
+	est_tokens_per_job = math.ceil((
+		json.loads(avg_desc_length.content[0].text)
+		if avg_desc_length else 1000) / 4 + 500
+	)
 
-	batch_size  = max(1, min(math.floor(tpm / est_tokens_per_job), 20))
+	batch_size  = max(1, min(math.floor(tpm / est_tokens_per_job), 30))
 	retry_delay = math.ceil(60 / rpm)
 	return batch_size, float(retry_delay)
 
