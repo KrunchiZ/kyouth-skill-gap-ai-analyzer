@@ -81,7 +81,28 @@ This reads `pyproject.toml`, pins all exact versions, and creates a `.venv` dire
 
 ---
 
-### 5. Activate the virtual environment (optional)
+### 5. Create the environment file in the project directory
+
+```bash
+echo 'GEMINI_API_KEY="<YOUR_API_KEY>"' > ".env"
+
+# Replace <YOUR_API_KEY> with your Gemini API key, without the <> brackets.
+# Tip: Ctrl-Shift-V to paste on terminal.
+```
+
+This creates a `.env` file containing the Gemini API key as an environment variable. This file will be called by the dotenv python library during script execution, allowing the Gemini Client to access the variable. This file has been added into the gitignore list so it will not be uploaded to the remote repository.
+
+If you accidentally uploaded it, make sure you run `git rm --cached .env` to remove it, add the file to `.gitignore`, then commit and  push the changes.
+
+```bash
+git rm --cached .env
+echo ".env" >> .gitignore
+git commit -m "chore: removing .env from remote repo"
+git push
+```
+---
+
+### 6. Activate the virtual environment (optional)
 
 `uv run` (used in all commands below) automatically uses the `.venv` without manual activation. However, if you need to activate it for other tooling:
 
@@ -129,9 +150,9 @@ uv run find_skill_gaps.py
 Place raw `.mhtml` files into the `0_source/` directory before running:
 
 ```
-data/
-        *.db		← database samples consisting of job listings
-        *.txt		← resume samples
+└─ data/
+  ├─ *.db	← database samples consisting of job listings
+  └─ *.txt	← resume samples
 ```
 
 >You can inspect the final database with `SQLite3 editor` on `VS Code`.
