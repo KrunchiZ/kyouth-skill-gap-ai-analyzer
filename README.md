@@ -130,8 +130,8 @@ Place raw `.mhtml` files into the `0_source/` directory before running:
 
 ```
 data/
-	*.db		← database samples consisting of job listings
-	*.txt		← resume samples
+        *.db		← database samples consisting of job listings
+        *.txt		← resume samples
 ```
 
 >You can inspect the final database with `SQLite3 editor` on `VS Code`.
@@ -179,6 +179,19 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 
 **Mainly used by:** `tag_data.py` (batch reads and `tech_stack` updates) and `find_skill_gaps.py` (aggregating `tech_stack` values across all job listings).
 
+```
+├─ tag_data.py          ← tagging + MCP client
+├─ find_skill_gaps.py   ← skill gap analyzing + MCP client
+├─ db_server.py         ← FastMCP server (all DB ops)
+└─ sql/
+  ├─ fetch_untagged.sql
+  ├─ update_tech_stack.sql
+  ├─ fetch_tagged.sql
+  ├─ fetch_last_snapshot.sql
+  ├─ save_snapshot.sql
+  └─ create_snapshot_table.sql
+```
+
 ---
 
 ### **tag_data.py** — `tag_data(db_url)`
@@ -200,13 +213,26 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 - If no untagged rows remain, the function logs `No data to tag` and exits cleanly.
 - All exceptions (API errors, DB errors, parsing failures) are caught and logged without crashing the process.
 
+**Core Workflow**
+```
+Read jobs with no tech_stack
+        ▼
+Split into batches (e.g. 10 jobs per batch)
+        ▼
+For each batch → send descriptions to LLM → get back tech stacks
+        ▼
+Parse the LLM response → match each tech stack to its job ID
+        ▼
+Write results back to the database
+        ▼
+Log each result to stdout
+```
+
 **Output format (stdout):**
 ```
 [Batch 0] Attempt 1 failed: Mismatch between batch size and response
 Analyzed Job 91397216: SQL, Python, Java, Spring Framework/Spring Boot, ...
 Analyzed Job 91347112: Java, PyTorch, TensorFlow, scikit-learn, Git, CI/CD
-...
-Total tokens used: 2044, took 19305.595ms
 ```
 
 ---
@@ -224,7 +250,7 @@ Total tokens used: 2044, took 19305.595ms
 
 ```python
 class SkillGapResult(BaseModel):
-    gaps: List[str]   # Sorted, lowercase list of missing skills
+    gaps: list[str]   # Sorted, lowercase list of missing skills
     # (additional fields may be added as needed)
 ```
 
@@ -239,6 +265,29 @@ class SkillGapResult(BaseModel):
 - All errors are caught gracefully. No stack traces are surfaced to the caller.
 
 **Module interaction:** `find_skill_gaps` depends on the database produced by `tag_data`. The `tech_stack` column must be populated before skill gap analysis can be run. Both modules access the database exclusively through `db_server.py` via MCP rather than direct SQLite calls.
+
+**Core Workflow**
+```
+Job DB skills (raw)         Resume skills (LLM-extracted)
+       ▼                              ▼
+   normalize()                   normalize()
+   - split on /                  - split on /
+   - handle exceptions           - handle exceptions  
+   - lowercase                   - lowercase
+       ▼                              ▼
+job_skills = set(...)        resume_skills = set(...)
+       └──────────────┬───────────────┘
+                      ▼
+        gaps = job_skills - resume_skills
+                      ▼
+              sorted(list(gaps))
+```
+
+**Output format (stdout):**
+```
+% uv run find_skill_gaps.py
+gaps=['alibaba cloud', 'api integration or web automation', 'aws', 'aws deployment and maintenance', 'azure', 'c++', 'cloud logs', 'datastudio', 'excel', 'gcp', 'github actions', 'google cloud', 'grafana', 'linux development environments', 'mongodb', 'mysql', 'nginx', 'node.js', 'oracle', 'php', 'postgresql', 'power bi', 'powerbi', 'prometheus', 'restful api design and development', 'spring boot', 'spring framework', 'sql server', 'version control']
+```
 
 <br/>
 
@@ -279,22 +328,17 @@ class SkillGapResult(BaseModel):
 ### Data Flow
 
 ```
-jobs_d1.db (raw descriptions)
-        │
+   jobs database (raw descriptions)
         ▼
    tag_data.py  ──► LLM (Gemini / Ollama)
-        │
         ▼
-jobs_d1.db (tech_stack populated)
-        │
+   jobs database (tech_stack populated)
         ├────────────────────────┐
         ▼                        ▼
-  jobs.tech_stack            resume.txt
-        │                        │
+   jobs.tech_stack           resume.txt
         └──────────┬─────────────┘
                    ▼
           find_skill_gaps.py  ──► LLM (Gemini / Ollama)
-                   │
                    ▼
            SkillGapResult.gaps
 ```
