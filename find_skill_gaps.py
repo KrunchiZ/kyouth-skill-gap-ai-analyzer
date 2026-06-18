@@ -6,6 +6,8 @@ from pathlib import Path
 from fastmcp import Client
 from pydantic import BaseModel
 from prompt_model import prompt_model
+from process_resume import extract_resume_skills
+from tag_data import compute_batch_params
 from fastmcp.client.transports import PythonStdioTransport
 
 class SkillGapResult(BaseModel):
@@ -56,59 +58,7 @@ SYSTEM_PROMPT = """\
 
 
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
-	pass
+	resume_skills = extract_resume_skills(Path(input_file_path))
 
-
-# ---------------------------------------------------------------------------
-# ─── RATE LIMIT PARSING ─────────────────────────────────────────────────────
-# ---------------------------------------------------------------------------
-
-def _parse_rate_limits(path: Path) -> dict[str, dict]:
-	limits: dict[str, dict] = {}
-	if not path.exists():
-		return limits
-	for line in path.read_text().splitlines():
-		line = line.strip()
-		if not line or line.startswith("#"):
-			continue
-		parts = line.split()
-		if len(parts) < 4:
-			continue
-		model, rpm_s, tpm_s, rpd_s = parts[0], parts[1], parts[2], parts[3]
-		limits[model] = {
-			"rpm": _parse_num(rpm_s),
-			"tpm": _parse_num(tpm_s),
-			"rpd": _parse_num(rpd_s),
-		}
-	return limits
-
-
-def _parse_num(s: str) -> int:
-	s = s.upper().replace(",", "")
-	if s.endswith("M"):
-		return int(float(s[:-1]) * 1_000_000)
-	if s.endswith("K"):
-		return int(float(s[:-1]) * 1_000)
-	return int(s)
-
-
-# ---------------------------------------------------------------------------
-# ─── BATCH SIZE & RETRY DELAY ───────────────────────────────────────────────
-# ---------------------------------------------------------------------------
-
-async def _compute_batch_params(limits: dict, mcp: Client) -> tuple[int, float]:
-	# Derive (batch_size, retry_delay_seconds) from rate limits.
-	#
-	# batch_size  = floor(TPM / est_tokens_per_job) capped at RPM and 20
-	# retry_delay = ceil(60 / RPM)
-	# Falls back to LOCAL_RPM / LOCAL_TPM hypothetical limits for local models
-	m   = limits.get(MODEL, {})
-	tpm = m.get("tpm", LOCAL_TPM)
-	rpm = m.get("rpm", LOCAL_RPM)
-	est_tokens = await mcp.call_tool("count_avg_desc_length", {})
-	est_tokens = math.ceil((int(json.loads(est_tokens.content[0].text)
-							if est_tokens else 1000) + 300) / 4)
-
-	batch_size  = min(math.floor(tpm / est_tokens), rpm, 20)
-	retry_delay = math.ceil(60 / rpm)
-	return batch_size, float(retry_delay)
+	# Placeholder implementation - replace with actual skill gap finding logic
+	return SkillGapResult(gaps=list(resume_skills))
