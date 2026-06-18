@@ -184,12 +184,10 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 ├─ find_skill_gaps.py   ← skill gap analyzing + MCP client
 ├─ db_server.py         ← FastMCP server (all DB ops)
 └─ sql/
+  ├─ count_avg_desc_length.sql
+  ├─ fetch_all_tagged_jobs.sql
   ├─ fetch_untagged.sql
-  ├─ update_tech_stack.sql
-  ├─ fetch_tagged.sql
-  ├─ fetch_last_snapshot.sql
-  ├─ save_snapshot.sql
-  └─ create_snapshot_table.sql
+  └─ update_tech_stack.sql
 ```
 
 ---
@@ -215,9 +213,9 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 
 **Core Workflow**
 ```
-Read jobs with no tech_stack
+Calculate batch size (e.g. 20 jobs per batch)
         ▼
-Split into batches (e.g. 10 jobs per batch)
+Read jobs with no tech_stack of batch size
         ▼
 For each batch → send descriptions to LLM → get back tech stacks
         ▼
