@@ -150,7 +150,7 @@ uv run ruff check .
 
 ## API / Function Reference
 
-### `prompt_model.py` — `prompt_model(model, prompt, temperature, top_p)`
+### **prompt_model.py** — `prompt_model(model, prompt, temperature, top_p)`
 
 **Purpose:** A unified interface to send a prompt to either a local Ollama model or a Google Gemini model, based on the model name provided. Handles unexpected errors without crashing.
 
@@ -167,7 +167,21 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 
 ---
 
-### `tag_data.py` — `tag_data(db_url)`
+### **db_server.py** — MCP SQL Server
+
+**Purpose:** A FastMCP server that exposes the SQLite database as a tool-callable service. Rather than having `tag_data.py` and `find_skill_gaps.py` execute SQL directly, they connect to this server as MCP clients and invoke its tool, decoupling database access from application logic.
+
+**How it works:**
+- The server is started as a separate process via stdio transport before either `tag_data.py` or `find_skill_gaps.py` runs.
+- Clients connect using `fastmcp.Client("db_server.py")` and invoke different query functions to read from or write to the database.
+- All SQL execution — reads, batch updates, and aggregations — is routed through this server rather than direct `sqlite3` calls in the calling modules.
+- The server holds the database connection and path internally; callers never reference the file path directly when querying.
+
+**Mainly used by:** `tag_data.py` (batch reads and `tech_stack` updates) and `find_skill_gaps.py` (aggregating `tech_stack` values across all job listings).
+
+---
+
+### **tag_data.py** — `tag_data(db_url)`
 
 **Purpose:** Reads all rows in the `jobs` table that have no value in the `tech_stack` column, and uses an LLM to extract a comma-separated list of technologies from each job description, writing the result back to the database.
 
@@ -197,7 +211,7 @@ Total tokens used: 2044, took 19305.595ms
 
 ---
 
-### `find_skill_gaps.py` — `find_skill_gaps(input_file_path, db_url)`
+### **find_skill_gaps.py** — `find_skill_gaps(input_file_path, db_url)`
 
 **Purpose:** Compares the technical skills in a candidate's resume against the aggregated `tech_stack` data from the jobs database to identify skills that appear in the job market but are absent from the resume.
 
@@ -224,7 +238,7 @@ class SkillGapResult(BaseModel):
 - Determinism is enforced — two consecutive runs on the same inputs must produce identical output. LLMs are used only where necessary; deterministic set-difference logic is preferred for the core comparison.
 - All errors are caught gracefully. No stack traces are surfaced to the caller.
 
-**Module interaction:** `find_skill_gaps` depends on the database produced by `tag_data`. The `tech_stack` column must be populated before skill gap analysis can be run.
+**Module interaction:** `find_skill_gaps` depends on the database produced by `tag_data`. The `tech_stack` column must be populated before skill gap analysis can be run. Both modules access the database exclusively through `db_server.py` via MCP rather than direct SQLite calls.
 
 <br/>
 
