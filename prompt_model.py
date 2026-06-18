@@ -1,3 +1,4 @@
+import io
 import sys
 import logging
 import ollama
@@ -31,6 +32,8 @@ GEMINI_MODELS = {
 	"gemini-3-flash-preview",
 }
 
+BASE_BACKOFF_SECONDS = 2.0
+MAX_RETRIES = 3
 DEFAULT_TEMPERATURE = 0.95
 DEFAULT_TOP_P = 0.95
 
@@ -66,7 +69,7 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 
 	try:
 		if llm_model in OLLAMA_MODELS:
-			for i in range(3):
+			for i in range(MAX_RETRIES):
 				try:
 					response = ollama_client.generate(
 						model = llm_model,
@@ -79,12 +82,13 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 					return response.response
 
 				except ollama.ResponseError as e:
-					if i < 2:
+					if i < MAX_RETRIES - 1:
+						io.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
 						continue
 					raise ValueError(f"Error ({e.status_code}): {e.error}")
 
 		if llm_model in GEMINI_MODELS:
-			for i in range(3):
+			for i in range(MAX_RETRIES):
 				try:
 					response = gemini_client.models.generate_content(
 						model = llm_model,
@@ -97,7 +101,8 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 					return response.text
 				
 				except genai.errors.APIError as e:
-					if i < 2:
+					if i < MAX_RETRIES - 1:
+						io.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
 						continue
 					raise ValueError(f"Error ({e.code}): {e.message}")
 
