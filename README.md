@@ -17,9 +17,9 @@ Together, the modules demonstrate practical LLM integration patterns: model rout
 
 ### Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| Python | **3.14.x** |
+| Requirement | Version    |
+|-------------|------------|
+| Python      | **3.14.x** |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | latest |
 
 > All Python dependencies are pinned to exact versions in `pyproject.toml`. Do not manually upgrade packages.
@@ -154,16 +154,24 @@ uv run ruff check .
 
 **Purpose:** A unified interface to send a prompt to either a local Ollama model or a Google Gemini model, based on the model name provided. Handles unexpected errors without crashing.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `model` | `str` | Model identifier. |
-| `prompt` | `str` | The text prompt to send to the model. |
+| Parameter     | Type    | Description |
+|---------------|---------|-------------|
+| `model`       | `str`   | Model identifier. |
+| `prompt`      | `str`   | The text prompt to send to the model. |
 | `temperature` | `float` | Sampling temperature controlling output randomness. Lower values (e.g. `0.0`) produce more deterministic responses; higher values increase creativity. |
-| `top_p` | `float` | Nucleus sampling threshold. The model considers only the smallest set of tokens whose cumulative probability exceeds this value. Works in conjunction with `temperature`. |
+| `top_p`       | `float` | Nucleus sampling threshold. The model considers only the smallest set of tokens whose cumulative probability exceeds this value. Works in conjunction with `temperature`. |
 
 **Returns:** `str` — the model's text response.
 
 The function internally routes to the Ollama REST API (`localhost:11434`) for local models, and to the Google AI SDK (`google.genai`) for Gemini models. If the model name does not match any known identifier, or if an API/network error occurs, the function catches the exception, retries up to 2 times and returns a safe fallback None object rather than crashing.
+
+**Available Models**
+| Local            | Gemini                 |
+|------------------|------------------------|
+| llama3.1         | gemini-3.1-flash-lite  |
+| phi3             | gemini-2.5-flash       |
+| deepseek-r1:1.5b | gemini-2.5-flash-lite  |
+| gemma3:1b        | gemini-3-flash-preview |
 
 ---
 
@@ -196,9 +204,9 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 
 **Purpose:** Reads all rows in the `jobs` table that have no value in the `tech_stack` column, and uses an LLM to extract a comma-separated list of technologies from each job description, writing the result back to the database.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `db_url` | `str` | File path to the SQLite database (e.g. `jobs_d1.db`). |
+| Parameter | Type  | Description |
+|-----------|-------|-------------|
+| `db_url`  | `str` | File path to the SQLite database (e.g. `jobs_d1.db`). |
 
 **Returns:**\
 *(Mandatory)* `None`.\
@@ -213,7 +221,7 @@ The function internally routes to the Ollama REST API (`localhost:11434`) for lo
 
 **Core Workflow**
 ```
-Calculate batch size (e.g. 20 jobs per batch)
+Calculate batch size (e.g. 20 jobs per batch) → reference rate_limits.txt for gemini
         ▼
 Read jobs with no tech_stack of batch size
         ▼
@@ -239,10 +247,10 @@ Analyzed Job 91347112: Java, PyTorch, TensorFlow, scikit-learn, Git, CI/CD
 
 **Purpose:** Compares the technical skills in a candidate's resume against the aggregated `tech_stack` data from the jobs database to identify skills that appear in the job market but are absent from the resume.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter         | Type  | Description |
+|-------------------|-------|-------------|
 | `input_file_path` | `str` | Path to the resume text file (e.g. `resume.txt`). |
-| `db_url` | `str` | File path to the tagged SQLite database. |
+| `db_url`          | `str` | File path to the tagged SQLite database. |
 
 **Returns:** `SkillGapResult` — a Pydantic `BaseModel` with the following shape:
 
@@ -297,19 +305,19 @@ gaps=['alibaba cloud', 'api integration or web automation', 'aws', 'aws deployme
 
 | Source | Description |
 |--------|-------------|
-| `jobs_d1.db` | SQLite database containing a `jobs` table with at minimum a job ID, description text, and a `tech_stack` column (nullable). |
-| `resume.txt` | Plain text file containing a candidate's extracted resume content. |
+| `jobs*.db` | SQLite database containing a `jobs` table with at minimum a job ID, description text, and a `tech_stack` column (nullable). |
+| `resume*.txt` | Plain text file containing a candidate's extracted resume content. |
 | `rate_limits.txt` | Plain text file recording RPM, TPM, and RPD for each Gemini model, used to calculate safe batch sizes and retry intervals. |
 
 ### Database Schema (`jobs` table — relevant columns)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `source_id` | TEXT | Unique job listing identifier. |
-| `job_tile` | TEXT | Job title. |
-| `company` | TEXT | Company name. |
-| `description` | TEXT | Raw job description text used for tagging. |
-| `tech_stack` | TEXT / NULL | Comma-separated tech stack populated by `tag_data`. NULL until tagged. |
+| Column        | Type        | Description   |
+|---------------|-------------|---------------|
+| `source_id`   | TEXT        | Unique job listing identifier. |
+| `job_tile`    | TEXT        | Job title.    |
+| `company`     | TEXT        | Company name. |
+| `description` | TEXT        | Raw job description text used for tagging. |
+| `tech_stack`  | TEXT / NULL | Comma-separated tech stack populated by `tag_data`. NULL until tagged. |
 
 ### Assumptions
 
