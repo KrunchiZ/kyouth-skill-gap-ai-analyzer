@@ -3,12 +3,7 @@ import json
 import logging
 from pathlib import Path
 import time
-from pydantic import BaseModel
 from prompt_model import prompt_model
-from fastmcp import Client
-
-class SkillGapResult(BaseModel):
-	gaps: list[str]
 
 logging.basicConfig(
 	level=logging.INFO,
@@ -38,12 +33,12 @@ GEMINI_MODELS = [
 	"gemini-3-flash-preview",
 ]
 
-MODEL = OLLAMA_MODELS[0] if LOCAL_MODEL else GEMINI_MODELS[2]
+MODEL = OLLAMA_MODELS[0] if LOCAL_MODEL else GEMINI_MODELS[0]
 DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
 TEMPERATURE = 0.0
-TOP_P = 0.5
+TOP_P = 0.2
 
 # Hypothetical local model rate limits (local models not in rate_limits.txt)
 # Formula: batch_size = floor(LOCAL_TPM / AVG_TOKENS_PER_JOB)
@@ -75,6 +70,10 @@ Rules:
 
 Output format (strict):
 ["skill one", "skill two", ...]
+
+Examples:
+["CI/CD", "Java", "AWS/GCP", "SQL", "MySQL"]
+["Python", "TensorFlow", "PyTorch", "scikit-learn", "c#"]
 """
 
 
@@ -172,7 +171,6 @@ def _parse_llm_json(text: str) -> list[str] | None:
 		if isinstance(data, list) and all(isinstance(s, str) for s in data):
 			return data
 		logging.warning(f"JSON parsed but wrong shape: {type(data)}")
-		print(f"Raw LLM output:\n{text}")
 		return None
 
 	except json.JSONDecodeError as exc:
@@ -191,11 +189,12 @@ def _parse_llm_json(text: str) -> list[str] | None:
 #   - Strip whitespace from each token
 #   - Drop empty tokens
 def normalize_skills(raw_skills: list[str]) -> set[str]:
-	result: set[str] = set()
-	for raw in raw_skills:
-		tokens = _split_skill(raw.lower().strip())
-		result.update(t for t in tokens if t)
-	return result
+    return {
+		token 
+		for raw in raw_skills
+		if raw and isinstance(raw, str)
+		for token in _split_skill(raw.lower().strip())
+	}
 
 
 # Split a single lowercased skill string on '/' unless it is a known
