@@ -1,6 +1,6 @@
-import io
 import sys
 import logging
+import time
 import ollama
 from google import genai
 from google.genai import types
@@ -85,7 +85,7 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 					if i < MAX_RETRIES - 1:
 						logging.warning(
 							f"[{llm_model}]: {e.status_code} - {e.error}. Retrying...[{i+1}/{MAX_RETRIES}]")
-						io.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
+						time.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
 						continue
 					raise ValueError(f"Error ({e.status_code}): {e.error}")
 
@@ -106,7 +106,7 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 					if i < MAX_RETRIES - 1:
 						logging.warning(
 								f"[{llm_model}]: {e.code} - {e.message}. Retrying...[{i+1}/{MAX_RETRIES}]")
-						io.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
+						time.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
 						continue
 					raise ValueError(f"Error ({e.code}): {e.message}")
 
