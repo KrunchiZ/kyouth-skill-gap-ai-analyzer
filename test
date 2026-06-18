@@ -1,0 +1,12 @@
+# ---------------------------------------------------------------------------
+# CLI smoke-test  (uv run resume_extractor.py resume.txt)
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+	import sys
+
+	logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+	path = sys.argv[1] if len(sys.argv) > 1 else "resume.txt"
+	skills = extract_resume_skills(path)
+
