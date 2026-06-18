@@ -48,13 +48,34 @@ LOCAL_TPM = 50_000
 MAX_RETRIES				= 3
 BACKOFF_BASE_SECONDS	= 2.0        # seconds; doubles each retry
 
+PROMPT_LINES = [
+	"Extract the tech stack from each job description.",
+	"Reply ONLY in this JSON format, one line per job, no other explanation:",
+	"<source_id>: <tag1>, <tag2>, <tag3>",
+	"",
+	"Rules:",
+	"- Tags must be specific tools, languages or frameworks (e.g. Python, React, MySQL).",
+	# "- No generic terms (e.g. 'Programming Language', 'Database', 'Deployment').",
+	"- No duplicates, no brackets, no markdown, must be comma-separated.",
+	"- If the description is vague but hints at a common stack (e.g. 'web development' might imply JavaScript, HTML, CSS), make your best guess.",
+	"- Even a vague hint is better than nothing.",
+	# "- If nothing can be inferred, output: <source_id>: N/A",
+	"",
+	"Example:",
+	"91397216: Python, SQL, MySQL, MariaDB, Tableau, A/B testing",
+	"91347112: Java, Spring Boot, Docker, Kubernetes",
+	"91765212: Excel, PowerPoint, Python, C, C++",
+	"",
+	"--- DATA STARTS HERE ---",
+]
 
 # ---------------------------------------------------------------------------
-# ─── MAIN ENTRY POINT ───────────────────────────────────────────────────────
+# ─── MAIN CLI ENTRY POINT ───────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
 def main():
 	tag_data(DB_PATH)
+
 
 # ---------------------------------------------------------------------------
 # ─── CORE TAG_DATA ──────────────────────────────────────────────────────────
@@ -78,8 +99,7 @@ async def _tag_data_async(db_url: str):
 	async with Client(server_cmd) as mcp:
 		b_idx = 0
 		while True:
-			rate_limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
-			batch_size, retry_delay = await _compute_batch_params(rate_limits, mcp)
+			batch_size, retry_delay = await compute_batch_params(mcp)
 
 			untagged_result = await mcp.call_tool("fetch_untagged_jobs", {"batch_size": batch_size})
 			batch: list[dict] = (
@@ -88,29 +108,8 @@ async def _tag_data_async(db_url: str):
 			if not batch:
 				break
 
-			prompt_lines = [
-				"Extract the tech stack from each job description.",
-				"Reply ONLY in this JSON format, one line per job, no other explanation:",
-				"<source_id>: <tag1>, <tag2>, <tag3>",
-				"",
-				"Rules:",
-				"- Tags must be specific tools, languages or frameworks (e.g. Python, React, MySQL).",
-				# "- No generic terms (e.g. 'Programming Language', 'Database', 'Deployment').",
-				"- No duplicates, no brackets, no markdown, must be comma-separated.",
-				"- If the description is vague but hints at a common stack (e.g. 'web development' might imply JavaScript, HTML, CSS), make your best guess.",
-				"- Even a vague hint is better than nothing.",
-				# "- If nothing can be inferred, output: <source_id>: N/A",
-				"",
-				"Example:",
-				"91397216: Python, SQL, MySQL, MariaDB, Tableau, A/B testing",
-				"91347112: Java, Spring Boot, Docker, Kubernetes",
-				"91765212: Excel, PowerPoint, Python, C, C++",
-				"",
-				"--- DATA STARTS HERE ---",
-			]
-
 			expected_ids = [str(job["source_id"]) for job in batch]
-			prompt = _build_prompt(batch, prompt_lines)
+			prompt = _build_prompt(batch, PROMPT_LINES)
 			parsed: dict[str, str] = {}
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
@@ -147,8 +146,27 @@ async def _tag_data_async(db_url: str):
 
 
 # ---------------------------------------------------------------------------
-# ─── RATE LIMIT PARSING ─────────────────────────────────────────────────────
+# ─── BATCH SIZE & RETRY DELAY ───────────────────────────────────────────────
 # ---------------------------------------------------------------------------
+
+async def compute_batch_params(mcp: Client) -> tuple[int, float]:
+	# Derive (batch_size, retry_delay_seconds) from rate limits.
+	#
+	# batch_size  = floor(TPM / est_tokens_per_job) capped at RPM and 20
+	# retry_delay = ceil(60 / RPM)
+	# Falls back to LOCAL_RPM / LOCAL_TPM hypothetical limits for local models
+	limits: dict[str, int] = _parse_rate_limits(RATE_LIMITS_TXT)
+	m   = limits.get(MODEL, {})
+	tpm = m.get("tpm", LOCAL_TPM)
+	rpm = m.get("rpm", LOCAL_RPM)
+	est_tokens = await mcp.call_tool("count_avg_desc_length", {})
+	est_tokens = math.ceil((int(json.loads(est_tokens.content[0].text)
+							if est_tokens else 1000) + 300) / 4)
+
+	batch_size  = min(math.floor(tpm / est_tokens), rpm, 20)
+	retry_delay = math.ceil(60 / rpm)
+	return batch_size, float(retry_delay)
+
 
 def _parse_rate_limits(path: Path) -> dict[str, dict]:
 	limits: dict[str, dict] = {}
@@ -177,28 +195,6 @@ def _parse_num(s: str) -> int:
 	if s.endswith("K"):
 		return int(float(s[:-1]) * 1_000)
 	return int(s)
-
-
-# ---------------------------------------------------------------------------
-# ─── BATCH SIZE & RETRY DELAY ───────────────────────────────────────────────
-# ---------------------------------------------------------------------------
-
-async def _compute_batch_params(limits: dict, mcp: Client) -> tuple[int, float]:
-	# Derive (batch_size, retry_delay_seconds) from rate limits.
-	#
-	# batch_size  = floor(TPM / est_tokens_per_job) capped at RPM and 20
-	# retry_delay = ceil(60 / RPM)
-	# Falls back to LOCAL_RPM / LOCAL_TPM hypothetical limits for local models
-	m   = limits.get(MODEL, {})
-	tpm = m.get("tpm", LOCAL_TPM)
-	rpm = m.get("rpm", LOCAL_RPM)
-	est_tokens = await mcp.call_tool("count_avg_desc_length", {})
-	est_tokens = math.ceil((int(json.loads(est_tokens.content[0].text)
-							if est_tokens else 1000) + 300) / 4)
-
-	batch_size  = min(math.floor(tpm / est_tokens), rpm, 20)
-	retry_delay = math.ceil(60 / rpm)
-	return batch_size, float(retry_delay)
 
 
 # ---------------------------------------------------------------------------
@@ -233,10 +229,6 @@ def _parse_response(raw: str, expected_ids: list[str]) -> dict[str, str]:
 			result[sid] = tags.strip().strip("\"\',[]").strip()
 	return result
 
-
-# ---------------------------------------------------------------------------
-# ─── CLI ENTRY POINT ────────────────────────────────────────────────────────
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
 	main()
