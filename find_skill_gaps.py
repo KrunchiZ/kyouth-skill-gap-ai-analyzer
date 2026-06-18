@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import json
 import asyncio
@@ -83,12 +84,33 @@ Examples:
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Main entry point
+# ---------------------------------------------------------------------------
+
+def main():
+	if not RESUME_PATH.exists():
+		logging.warning(f"Resume path not found: {RESUME_PATH}")
+		sys.exit(1)
+	if not os.access(RESUME_PATH, os.R_OK):
+		logging.warning(f"Resume path not readable: {RESUME_PATH}")
+		sys.exit(1)
+	if not DB_PATH.exists():
+		logging.warning(f"DB path not found: {DB_PATH}")
+		sys.exit(1)
+	if not os.access(DB_PATH, os.R_OK):
+		logging.warning(f"DB path not readable: {DB_PATH}")
+		sys.exit(1)
+
+	print(find_skill_gaps(str(RESUME_PATH), str(DB_PATH)))
+
+
+# ---------------------------------------------------------------------------
+# Skill gap finder (orchestrates the whole process, handles errors)
 # ---------------------------------------------------------------------------
 
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
 	try:
-		resume_skills = extract_resume_skills(Path(input_file_path))
+		resume_skills = _extract_resume_skills(Path(input_file_path))
 		if not resume_skills:
 			return SkillGapResult(gaps=[])
 		tech_stack = asyncio.run(_fetch_db_skills(db_url))
@@ -104,10 +126,10 @@ def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
 # Resume Extractor
 # ---------------------------------------------------------------------------
 
-def extract_resume_skills(file_path) -> set[str]:
+def _extract_resume_skills(file_path) -> set[str]:
 	try:
 		resume_text = _read_resume(file_path)
-		return normalize_skills(call_llm(resume_text)) if resume_text else set()
+		return _normalize_skills(_call_llm(resume_text)) if resume_text else set()
 	
 	except Exception as e:
 		logging.error(f"Error processing {file_path}: {e}")
@@ -135,7 +157,7 @@ def _read_resume(file_path) -> str:
 # prompt_model
 # ---------------------------------------------------------------------------
  
-def call_llm(resume_text: str) -> list[str]:
+def _call_llm(resume_text: str) -> list[str]:
 	# Fence the untrusted input to prevent prompt injection
 	prompt = (
 		f"{SYSTEM_PROMPT}\n\n"
@@ -201,7 +223,7 @@ async def _fetch_db_skills(db_url: str) -> set[str]:
 			if not rows:
 				raise ValueError("No tagged jobs found in database")
 
-			return normalize_skills([
+			return _normalize_skills([
 				token
 				for row in rows
 				for token in (t.strip() for t in row.get("tech_stack", "").split(","))
@@ -222,7 +244,7 @@ async def _fetch_db_skills(db_url: str) -> set[str]:
 #   - Split on '/' EXCEPT for entries in SLASH_EXCEPTIONS
 #   - Strip whitespace from each token
 #   - Drop empty tokens
-def normalize_skills(raw_skills: list[str]) -> set[str]:
+def _normalize_skills(raw_skills: list[str]) -> set[str]:
     return {
 		token 
 		for raw in raw_skills
