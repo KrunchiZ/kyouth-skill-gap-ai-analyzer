@@ -3,6 +3,7 @@ import math
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from fastmcp import Client
 from prompt_model import prompt_model
@@ -37,7 +38,7 @@ GEMINI_MODELS = [
 ]
 
 MODEL = OLLAMA_MODELS[0] if LOCAL_MODEL else GEMINI_MODELS[0]
-DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
+DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs_d3_eval.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
 TEMPERATURE = 0.95
@@ -77,6 +78,12 @@ PROMPT_LINES = [
 # ---------------------------------------------------------------------------
 
 def main():
+	if not DB_PATH.exists():
+		logging.warning(f"Input path not found: {DB_PATH}")
+		sys.exit(1)
+	if not os.access(DB_PATH, os.R_OK):
+		logging.warning(f"Input path not readable: {DB_PATH}")
+		sys.exit(1)
 	tag_data(DB_PATH)
 
 
@@ -85,12 +92,6 @@ def main():
 # ---------------------------------------------------------------------------
 
 def tag_data(db_url: str):
-	if not db_url.exists():
-		logging.warning(f"Input path not found: {db_url}")
-		return
-	if not os.access(db_url, os.R_OK):
-		logging.warning(f"Input path not readable: {db_url}")
-		return
 	try:
 		asyncio.run(_tag_data_async(str(db_url)))
 	except Exception as code:
@@ -98,8 +99,8 @@ def tag_data(db_url: str):
 
 
 async def _tag_data_async(db_url: str):
-	server_cmd = PythonStdioTransport("db_server.py", args=[db_url])
-	async with Client(server_cmd) as mcp:
+	db_server = PythonStdioTransport("db_server.py", args=[db_url])
+	async with Client(db_server) as mcp:
 		b_idx = 0
 		while True:
 			batch_size, retry_delay = await compute_batch_params(mcp)
