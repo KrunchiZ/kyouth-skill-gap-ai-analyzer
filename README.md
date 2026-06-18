@@ -235,7 +235,7 @@ Log each result to stdout
 ```
 
 **Output format (stdout):**
-```
+```bash
 [Batch 0] Attempt 1 failed: Mismatch between batch size and response
 Analyzed Job 91397216: SQL, Python, Java, Spring Framework/Spring Boot, ...
 Analyzed Job 91347112: Java, PyTorch, TensorFlow, scikit-learn, Git, CI/CD
@@ -290,7 +290,7 @@ job_skills = set(...)        resume_skills = set(...)
 ```
 
 **Output format (stdout):**
-```
+```bash
 % uv run find_skill_gaps.py
 gaps=['alibaba cloud', 'api integration or web automation', 'aws', 'aws deployment and maintenance', 'azure', 'c++', 'cloud logs', 'datastudio', 'excel', 'gcp', 'github actions', 'google cloud', 'grafana', 'linux development environments', 'mongodb', 'mysql', 'nginx', 'node.js', 'oracle', 'php', 'postgresql', 'power bi', 'powerbi', 'prometheus', 'restful api design and development', 'spring boot', 'spring framework', 'sql server', 'version control']
 ```
