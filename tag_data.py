@@ -42,12 +42,12 @@ DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
 TEMPERATURE = 0.95
-TOP_P = 0.5
+TOP_P = 0.95
 
 # Hypothetical local model rate limits (local models not in rate_limits.txt)
 # Formula: batch_size = floor(LOCAL_TPM / AVG_TOKENS_PER_JOB)
 LOCAL_RPM = 60
-LOCAL_TPM = 50_000
+LOCAL_TPM = 250_000
 
 MAX_RETRIES				= 3
 BACKOFF_BASE_SECONDS	= 2.0        # seconds; doubles each retry
