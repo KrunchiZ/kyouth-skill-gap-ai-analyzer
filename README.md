@@ -143,7 +143,11 @@ uv run tag_data.py
 
 # Stage 2 — Analyze and compare resume with database to determine skill gaps
 uv run find_skill_gaps.py
+
 ```
+> Adjust the `DEBUG` and `LOCAL_MODEL` flag to change resume/database and LLM models respectively.
+>- `DEBUG = True` to use test files with smaller sample size. `False` for bigger/eval files.
+>- `LOCAL_MODEL = True` for local Ollama models. `False` for Gemini cloud models.
 
 ### Expected input
 
