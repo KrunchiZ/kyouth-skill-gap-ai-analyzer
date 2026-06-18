@@ -12,14 +12,11 @@ from fastmcp import FastMCP
 DB_PATH: str = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/jobs_d1.db")
 
 SQL_COUNT_AVG_DESC_LEN  = Path("./sql/count_avg_desc_length.sql")
-SQL_FETCH_TAGGED        = Path("./sql/fetch_tagged.sql")
 SQL_FETCH_UNTAGGED      = Path("./sql/fetch_untagged.sql")
 SQL_UPDATE_TECH_STACK   = Path("./sql/update_tech_stack.sql")
 
 
-# ---------------------------------------------------------------------------
 # MCP server
-# ---------------------------------------------------------------------------
 mcp = FastMCP("SQLite-Service")
 
 
@@ -51,13 +48,13 @@ def fetch_untagged_jobs(batch_size: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-@mcp.tool()
-def fetch_tagged_jobs() -> list[dict]:
-    # Return all jobs that already have a tech_stack value (for quality checks).
-    sql = _load_sql(SQL_FETCH_TAGGED)
-    with _connect() as conn:
-        rows = conn.execute(sql).fetchall()
-    return [dict(r) for r in rows]
+# @mcp.tool()
+# def fetch_tagged_jobs() -> list[dict]:
+#     # Return all jobs that already have a tech_stack value (for quality checks).
+#     sql = _load_sql(SQL_FETCH_TAGGED)
+#     with _connect() as conn:
+#         rows = conn.execute(sql).fetchall()
+#     return [dict(r) for r in rows]
 
 
 @mcp.tool()
