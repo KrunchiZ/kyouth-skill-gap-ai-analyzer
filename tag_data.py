@@ -40,6 +40,9 @@ MODEL = OLLAMA_MODELS[0] if LOCAL_MODEL else GEMINI_MODELS[0]
 DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
+TEMPERATURE = 0.95
+TOP_P = 0.5
+
 # Hypothetical local model rate limits (local models not in rate_limits.txt)
 # Formula: batch_size = floor(LOCAL_TPM / AVG_TOKENS_PER_JOB)
 LOCAL_RPM = 60
@@ -113,7 +116,7 @@ async def _tag_data_async(db_url: str):
 			parsed: dict[str, str] = {}
 			for attempt in range(1, MAX_RETRIES + 1):
 				try:
-					raw = prompt_model(MODEL, prompt)
+					raw = prompt_model(MODEL, prompt, temperature=TEMPERATURE, top_p=TOP_P)
 					if not raw:
 						raise ValueError("Empty response from model")
 					parsed = _parse_response(raw, expected_ids)
