@@ -83,6 +83,8 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 
 				except ollama.ResponseError as e:
 					if i < MAX_RETRIES - 1:
+						logging.warning(
+							f"[{llm_model}]: {e.status_code} - {e.error}. Retrying...[{i+1}/{MAX_RETRIES}]")
 						io.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
 						continue
 					raise ValueError(f"Error ({e.status_code}): {e.error}")
@@ -95,13 +97,15 @@ def prompt_model(llm_model: str, prompt: str, temperature: float = DEFAULT_TEMPE
 						contents = prompt,
 						config = types.GenerateContentConfig(
 							temperature = temperature,
-						top_p = top_p,
+							top_p = top_p,
 						),
 					)
 					return response.text
 				
 				except genai.errors.APIError as e:
 					if i < MAX_RETRIES - 1:
+						logging.warning(
+								f"[{llm_model}]: {e.code} - {e.message}. Retrying...[{i+1}/{MAX_RETRIES}]")
 						io.sleep(BASE_BACKOFF_SECONDS * (2 ** i))
 						continue
 					raise ValueError(f"Error ({e.code}): {e.message}")
