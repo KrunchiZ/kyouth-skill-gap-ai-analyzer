@@ -38,7 +38,7 @@ GEMINI_MODELS = [
 ]
 
 MODEL = OLLAMA_MODELS[0] if LOCAL_MODEL else GEMINI_MODELS[0]
-DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs_d3_eval.db")
+DB_PATH = Path("data/jobs_d1.db") if DEBUG else Path("data/jobs.db")
 RATE_LIMITS_TXT = Path("./rate_limits.txt")
 
 TEMPERATURE = 0.95

@@ -26,7 +26,7 @@ class SkillGapResult(BaseModel):
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-DEBUG = True
+DEBUG = False
 LOCAL_MODEL = False
 
 RESUME_PATH = Path("data/resume_d3.txt") if DEBUG else Path("data/resume_d3_eval.txt")
