@@ -7,9 +7,10 @@ import logging
 from pathlib import Path
 from fastmcp import Client
 from pydantic import BaseModel
-from prompt_model import prompt_model
 from fastmcp.client.transports import PythonStdioTransport
 
+from prompt_model import prompt_model
+from tag_data import compute_batch_params
 
 logging.basicConfig(
 	level=logging.INFO,
@@ -80,6 +81,7 @@ Output format (strict):
 Examples:
 ["CI/CD", "Java", "AWS/GCP", "SQL", "MySQL"]
 ["Python", "TensorFlow", "PyTorch", "scikit-learn", "c#"]
+['Not Applicable'] (if no technical skills found)
 """
 
 
@@ -110,12 +112,26 @@ def main():
 
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
 	try:
-		resume_skills = _extract_resume_skills(Path(input_file_path))
-		if not resume_skills:
-			return SkillGapResult(gaps=[])
-		tech_stack = asyncio.run(_fetch_db_skills(db_url))
+		with Client(PythonStdioTransport("db_server.py", args=[db_url])) as mcp:
+			batch_size, retry_delay = asyncio.run(compute_batch_params(mcp))
+			resume_skills = _extract_resume_skills(Path(input_file_path), retry_delay)
+			if not resume_skills:
+				raise ValueError("Resume extraction failed")
 
-		return SkillGapResult(gaps=sorted(tech_stack - resume_skills))
+			gaps_set: set[str] = set()
+			last_sid: int = 0
+			i = 0
+			while True:
+				tech_stack, last_sid = asyncio.run(_fetch_db_skills(mcp, batch_size, last_sid))
+				if not tech_stack:
+					break
+				gaps_set = gaps_set.union(tech_stack - resume_skills)
+				i += 1
+
+			if i == 0:
+				raise ValueError("No tagged jobs found in database")
+
+		return SkillGapResult(gaps=sorted(gaps_set))
 
 	except Exception as code:
 		logging.error(f"{code}")
@@ -126,10 +142,10 @@ def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
 # Resume Extractor
 # ---------------------------------------------------------------------------
 
-def _extract_resume_skills(file_path) -> set[str]:
+def _extract_resume_skills(file_path, retry_delay) -> set[str]:
 	try:
 		resume_text = _read_resume(file_path)
-		return _normalize_skills(_call_llm(resume_text)) if resume_text else set()
+		return _normalize_skills(_call_llm(resume_text, retry_delay)) if resume_text else set()
 	
 	except Exception as e:
 		logging.error(f"Error processing {file_path}: {e}")
@@ -157,7 +173,7 @@ def _read_resume(file_path) -> str:
 # prompt_model
 # ---------------------------------------------------------------------------
  
-def _call_llm(resume_text: str) -> list[str]:
+def _call_llm(resume_text: str, retry_delay: float) -> list[str]:
 	# Fence the untrusted input to prevent prompt injection
 	prompt = (
 		f"{SYSTEM_PROMPT}\n\n"
@@ -180,7 +196,7 @@ def _call_llm(resume_text: str) -> list[str]:
 		except Exception as code:
 			logging.error(f"Attempt {attempt} failed: {code}.")
 			if attempt < MAX_RETRIES:
-				delay = BACKOFF_BASE_SECONDS ** (attempt - 1)
+				delay = retry_delay * BACKOFF_BASE_SECONDS ** (attempt - 1)
 				logging.error(f"Retrying in {delay:.1f}s.")
 				time.sleep(delay)
 			else:
@@ -212,23 +228,22 @@ def _parse_llm_json(text: str) -> list[str] | None:
 # Internal async implementation
 # ---------------------------------------------------------------------------
 
-async def _fetch_db_skills(db_url: str) -> set[str]:
-	# Connect to db_server.py via MCP, call fetch_all_tagged_jobs,
+async def _fetch_db_skills(mcp: Client, batch_size: int, last_sid: int) -> tuple[set[str], int]:
+	# Call fetch_all_tagged_jobs,
 	# and flatten all comma-separated tech_stack values into a raw skill list.
 	try:
-		db_server = PythonStdioTransport("db_server.py", args=[db_url])
-		async with Client(db_server) as mcp:
-			result = await mcp.call_tool("fetch_all_tagged_jobs", {})
-			rows: list[dict] = json.loads(result.content[0].text) if result.content else []
-			if not rows:
-				raise ValueError("No tagged jobs found in database")
+		result = await mcp.call_tool("fetch_tagged_jobs",
+			{"batch_size": batch_size, "last_sid": last_sid})
+		rows: list[dict] = json.loads(result.content[0].text) if result.content else []
+		if not rows:
+			return set(), last_sid
 
-			return _normalize_skills([
-				token
-				for row in rows
-				for token in (t.strip() for t in row.get("tech_stack", "").split(","))
-				if token
-			])
+		return _normalize_skills([
+			token
+			for row in rows
+			for token in (t.strip() for t in row.get("tech_stack", "").split(","))
+			if token
+		], int(rows[-1].get("source_id", last_sid)))
 
 	except Exception as code:
 		raise ValueError(code) from code
