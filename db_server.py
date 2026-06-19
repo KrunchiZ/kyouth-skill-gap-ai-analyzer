@@ -14,8 +14,8 @@ DB_PATH: str = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/jobs_d1.db
 SQL_COUNT_AVG_DESC_LEN  = Path("./sql/count_avg_desc_length.sql")
 SQL_FETCH_UNTAGGED      = Path("./sql/fetch_untagged.sql")
 SQL_UPDATE_TECH_STACK   = Path("./sql/update_tech_stack.sql")
-SQL_FETCH_ALL_TAGGED_JOBS = Path("./sql/fetch_all_tagged_jobs.sql")
-
+SQL_FETCH_TAGGED_JOBS = Path("./sql/fetch_tagged_jobs.sql")
+SQL_COUNT_JOBS = Path("./sql/count_jobs.sql")
 
 # MCP server
 mcp = FastMCP("SQLite-Service")
@@ -32,6 +32,15 @@ def _connect() -> sqlite3.Connection:
 
 
 @mcp.tool()
+def count_jobs() -> int:
+	# Return the total number of jobs in the database.
+	sql = _load_sql(SQL_COUNT_JOBS)
+	with _connect() as conn:
+		result = conn.execute(sql).fetchone()
+	return int(result[0]) if result else 0
+
+
+@mcp.tool()
 def count_avg_desc_length() -> float:
 	# Return the average length of job descriptions.
 	sql = _load_sql(SQL_COUNT_AVG_DESC_LEN)
@@ -42,7 +51,7 @@ def count_avg_desc_length() -> float:
 
 @mcp.tool()
 def fetch_untagged_jobs(batch_size: int) -> list[dict]:
-	# Return all jobs where tech_stack is NULL or empty.
+	# Return jobs where tech_stack is NULL or empty in batch.
 	sql = _load_sql(SQL_FETCH_UNTAGGED)
 	with _connect() as conn:
 		rows = conn.execute(sql, {"batch_size": batch_size}).fetchall()
@@ -50,11 +59,12 @@ def fetch_untagged_jobs(batch_size: int) -> list[dict]:
 
 
 @mcp.tool()
-def fetch_all_tagged_jobs() -> list[dict]:
-	# Return all jobs where tech_stack is not null or empty.
-	sql = _load_sql(SQL_FETCH_ALL_TAGGED_JOBS)
+def fetch_tagged_jobs(batch_size: int, last_sid: int) -> list[dict]:
+	# Return jobs where tech_stack is not null or empty in batch.
+	sql = _load_sql(SQL_FETCH_TAGGED_JOBS)
 	with _connect() as conn:
-		rows = conn.execute(sql).fetchall()
+		rows = conn.execute(sql,
+			{"batch_size": batch_size, "last_sid": last_sid}).fetchall()
 	return [dict(r) for r in rows]
 
 
