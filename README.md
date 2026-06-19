@@ -287,8 +287,8 @@ class SkillGapResult(BaseModel):
 
 **Behaviour:**
 - Reads and parses `input_file_path` to extract the candidate's technical skills.
-- Reads the `tech_stack` column from the `jobs` table and aggregates all unique technologies across all listings.
-- Compares the two sets and returns skills present in the job database but absent from the resume.
+- Reads the `tech_stack` column from the `jobs` table by batches using `source_id` in ascending order.
+- Compares the two sets and aggregates all unique technologies present in the job database but absent from the resume across all listings.
 - Results are **sorted alphabetically** and **converted to lowercase**.
 - Skills containing `/` are split into individual entries, with the exception of `A/B testing` and `CI/CD`, which are treated as single atomic skills.
 - Certifications and non-technical skills (leadership, management, etc.) are excluded from the gap analysis.
@@ -299,17 +299,19 @@ class SkillGapResult(BaseModel):
 
 **Core Workflow**
 ```
-Job DB skills (raw)         Resume skills (LLM-extracted)
-       ▼                              ▼
-   normalize()                   normalize()
-   - split on /                  - split on /
-   - handle exceptions           - handle exceptions  
-   - lowercase                   - lowercase
-       ▼                              ▼
-job_skills = set(...)        resume_skills = set(...)
-       └──────────────┬───────────────┘
-                      ▼
-        gaps = job_skills - resume_skills
+Resume skills (LLM-extracted)   Job DB skills (raw) ◀───────┐
+       ▼                              ▼                      │
+   normalize()                   normalize()                 │
+   - split on /                  - split on /                │
+   - handle exceptions           - handle exceptions         │
+   - lowercase                   - lowercase                 │
+       ▼                              ▼                      │
+resume_skills = set(...)        job_skills = set(...)        │
+       └──────────────┬───────────────┘                      │
+                      ▼                                      │
+       batch = job_skills - resume_skills                    │
+                      ▼                                      │
+           gaps = gaps.union(batch) ──────(next batch)───────┘
                       ▼
               sorted(list(gaps))
 ```
