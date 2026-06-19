@@ -164,12 +164,15 @@ async def compute_batch_params(mcp: Client) -> tuple[int, float]:
 	tpm = m.get("tpm", LOCAL_TPM)
 	rpm = m.get("rpm", LOCAL_RPM)
 	avg_desc_length = await mcp.call_tool("count_avg_desc_length", {})
+	job_count = await mcp.call_tool("count_jobs", {})
 	est_tokens_per_job = math.ceil((
 		json.loads(avg_desc_length.content[0].text)
 		if avg_desc_length else 1000) / 4 + 500
 	)
+	job_count = int(json.loads(job_count.content[0].text)) if job_count else 0
 
-	batch_size  = max(1, min(math.floor(tpm / est_tokens_per_job), 30))
+	batch_size = (math.ceil(job_count / 2) if job_count <= 20
+		else min(tpm // est_tokens_per_job, math.ceil(job_count / rpm * MAX_RETRIES)))
 	retry_delay = math.ceil(60 / rpm)
 	return batch_size, float(retry_delay)
 
