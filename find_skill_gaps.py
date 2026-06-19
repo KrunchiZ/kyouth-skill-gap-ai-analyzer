@@ -112,31 +112,60 @@ def main():
 
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
 	try:
-		with Client(PythonStdioTransport("db_server.py", args=[db_url])) as mcp:
-			batch_size, retry_delay = asyncio.run(compute_batch_params(mcp))
-			resume_skills = _extract_resume_skills(Path(input_file_path), retry_delay)
-			if not resume_skills:
-				raise ValueError("Resume extraction failed")
-
-			gaps_set: set[str] = set()
-			last_sid: int = 0
-			i = 0
-			while True:
-				tech_stack, last_sid = asyncio.run(_fetch_db_skills(mcp, batch_size, last_sid))
-				if not tech_stack:
-					break
-				gaps_set = gaps_set.union(tech_stack - resume_skills)
-				i += 1
-
-			if i == 0:
-				raise ValueError("No tagged jobs found in database")
-
-		return SkillGapResult(gaps=sorted(gaps_set))
-
+		return SkillGapResult(
+			gaps = sorted(asyncio.run(_find_skill_gaps(input_file_path, db_url)))
+		)
 	except Exception as code:
 		logging.error(f"{code}")
 		return SkillGapResult(gaps=[])
 
+
+# ---------------------------------------------------------------------------
+# Internal async implementation
+# ---------------------------------------------------------------------------
+
+async def _find_skill_gaps(input_file_path: str, db_url: str) -> set[str]:
+	async with Client(PythonStdioTransport("db_server.py", args=[db_url])) as mcp:
+		batch_size, retry_delay = await compute_batch_params(mcp)
+		resume_skills = _extract_resume_skills(Path(input_file_path), retry_delay)
+		if not resume_skills:
+			raise ValueError("Resume extraction failed")
+
+		gaps_set: set[str] = set()
+		last_sid: int = 0
+		i = 0
+		while True:
+			tech_stack, last_sid = await _fetch_db_skills(mcp, batch_size, last_sid)
+			if not tech_stack:
+				break
+			gaps_set = gaps_set.union(tech_stack - resume_skills)
+			i += 1
+
+	if i == 0:
+		raise ValueError("No tagged jobs found in database")
+	return gaps_set
+
+
+async def _fetch_db_skills(mcp: Client, batch_size: int, last_sid: int) -> tuple[set[str], int]:
+	# Call fetch_all_tagged_jobs,
+	# and flatten all comma-separated tech_stack values into a raw skill list.
+	try:
+		result = await mcp.call_tool("fetch_tagged_jobs",
+			{"batch_size": batch_size, "last_sid": last_sid})
+		rows: list[dict] = json.loads(result.content[0].text) if result.content else []
+		if not rows:
+			return set(), last_sid
+
+		return _normalize_skills([
+			token
+			for row in rows
+			for token in (t.strip() for t in row.get("tech_stack", "").split(","))
+			if token
+		]), int(rows[-1].get("source_id", last_sid))
+
+	except Exception as code:
+		raise ValueError(code) from code
+	
 
 # ---------------------------------------------------------------------------
 # Resume Extractor
@@ -168,10 +197,6 @@ def _read_resume(file_path) -> str:
 		logging.error(f"{code}: {file_path}")
 		return ""
 
-
-# ---------------------------------------------------------------------------
-# prompt_model
-# ---------------------------------------------------------------------------
  
 def _call_llm(resume_text: str, retry_delay: float) -> list[str]:
 	# Fence the untrusted input to prevent prompt injection
@@ -223,31 +248,6 @@ def _parse_llm_json(text: str) -> list[str] | None:
 		logging.warning(f"JSON decode error: {exc}")
 		return None
 
-
-# ---------------------------------------------------------------------------
-# Internal async implementation
-# ---------------------------------------------------------------------------
-
-async def _fetch_db_skills(mcp: Client, batch_size: int, last_sid: int) -> tuple[set[str], int]:
-	# Call fetch_all_tagged_jobs,
-	# and flatten all comma-separated tech_stack values into a raw skill list.
-	try:
-		result = await mcp.call_tool("fetch_tagged_jobs",
-			{"batch_size": batch_size, "last_sid": last_sid})
-		rows: list[dict] = json.loads(result.content[0].text) if result.content else []
-		if not rows:
-			return set(), last_sid
-
-		return _normalize_skills([
-			token
-			for row in rows
-			for token in (t.strip() for t in row.get("tech_stack", "").split(","))
-			if token
-		], int(rows[-1].get("source_id", last_sid)))
-
-	except Exception as code:
-		raise ValueError(code) from code
-	
 
 # ---------------------------------------------------------------------------
 # Normalisation (pure logic, fully deterministic)
