@@ -19,7 +19,7 @@ logging.basicConfig(
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-DEBUG = False
+DEBUG = True
 LOCAL_MODEL = False
 
 # model passed to prompt_model()
