@@ -19,7 +19,7 @@ logging.basicConfig(
 # ─── GLOBAL CONFIGURATION ───────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-DEBUG = True
+DEBUG = False
 LOCAL_MODEL = False
 
 # model passed to prompt_model()
@@ -127,7 +127,8 @@ async def _tag_data_async(db_url: str):
 					break
 
 				except Exception as code:
-					logging.error(f"[Batch {b_idx}] Attempt {attempt} failed: {code}")
+					logging.error(f"[Batch {b_idx}] Attempt {attempt} failed: {code}"
+						f"Retrying in {retry_delay:.1f}s [{attempt+1}/{MAX_RETRIES}]")
 					if attempt < MAX_RETRIES:
 						await asyncio.sleep(retry_delay
 							* (BACKOFF_BASE_SECONDS ** (attempt - 1)))
@@ -143,7 +144,7 @@ async def _tag_data_async(db_url: str):
 				ok = await mcp.call_tool("update_tech_stack", {"source_id": sid, "tech_stack": stack})
 				if ok:
 					logging.info(f"Analyzed Job {sid}: {stack}")
-					b_idx += 1
+			b_idx += 1
 
 		if b_idx == 0:
 			logging.info("No data to tag")
